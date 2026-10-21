@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Open Weather</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- Vue 3 loaded straight from a CDN: no Vue-CLI, no build step -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+</head>
+<body>
+
+  <!-- Vue mounts here. The mood class drives the sky background. -->
+  <div id="app" v-cloak class="sky" :class="['mood-' + mood, { 'is-idle': status === 'idle' }]">
+
+    <!-- Title (foreground). Large when idle, compact once a search has been made. -->
+    <header class="hero">
+      <h1 class="title"><span class="title-icon" aria-hidden="true">&#9729;</span> Open Weather</h1>
+      <p class="tagline" v-if="status === 'idle'">Know what to pack before you go.</p>
+    </header>
+
+    <!-- City search -->
+    <form class="search" @submit.prevent="search()">
+      <input
+        v-model.trim="city"
+        type="text"
+        class="search-input"
+        placeholder="Where are you travelling?"
+        aria-label="City name"
+        autocomplete="off"
+        autofocus>
+      <button type="submit" class="search-button" :disabled="!city || status === 'loading'">
+        {{ status === 'loading' ? 'Checking...' : 'Check' }}
+      </button>
+    </form>
+
+    <!-- Example cities (first visit) or recent searches (returning visitor) -->
+    <div class="chips" v-if="status === 'idle' || status === 'error'">
+      <span class="chips-label">{{ history.length ? 'Recent:' : 'Try:' }}</span>
+      <button
+        v-for="name in chips"
+        :key="name"
+        type="button"
+        class="chip"
+        @click="search(name)">{{ name }}</button>
+    </div>
+
+    <!-- Loading state -->
+    <p class="status-message" v-if="status === 'loading'">
+      Checking the forecast for {{ city }}...
+    </p>
+
+    <!-- Error state -->
+    <p class="error-banner" role="alert" v-if="status === 'error'">
+      {{ errorMessage }}
+    </p>
+
+    <!-- Results (shown once a forecast has arrived) -->
+    <main class="results" v-if="status === 'success'">
+
+      <h2 class="place">
+        {{ forecast.city }}<span v-if="forecast.country">, {{ forecast.country }}</span>
+      </h2>
+      <p class="place-coords">{{ forecast.lat.toFixed(2) }}, {{ forecast.lon.toFixed(2) }}</p>
+
+      <!-- Verdict strip: the answer at a glance -->
+      <section class="verdict">
+
+        <article class="verdict-card">
+          <span class="verdict-icon" aria-hidden="true">&#9730;</span>
+          <h3 v-if="forecast.packing.umbrella">Bring an umbrella</h3>
+          <h3 v-else>No umbrella needed</h3>
+          <p v-if="forecast.packing.umbrella">Rain is forecast: {{ forecast.packing.rainDays.join(', ') }}.</p>
+          <p v-else>No rain is forecast over the next 3 days.</p>
+        </article>
+
+        <article class="verdict-card">
+          <span class="verdict-icon" aria-hidden="true">{{ forecast.packing.icon }}</span>
+          <h3>Pack for {{ forecast.packing.categoryLabel }} weather</h3>
+          <p>{{ forecast.packing.advice }}</p>
+          <p class="verdict-detail">
+            Average {{ forecast.packing.avgTemp }}&deg;C &middot;
+            range {{ forecast.packing.minTemp }}&deg;C to {{ forecast.packing.maxTemp }}&deg;C
+          </p>
+        </article>
+
+        <article class="verdict-card" :class="{ 'verdict-warn': airAlert }">
+          <span class="verdict-icon" aria-hidden="true">&#127787;</span>
+          <h3 v-if="!forecast.air.available">Air quality unavailable</h3>
+          <h3 v-else-if="airAlert">Air quality warning</h3>
+          <h3 v-else>Air quality is good</h3>
+          <p v-if="!forecast.air.available">We couldn't get air quality data just now.</p>
+          <p v-else-if="airAlert">
+            {{ forecast.air.warnings.length }}
+            {{ forecast.air.warnings.length === 1 ? 'pollutant is' : 'pollutants are' }}
+            above the Good level. Details below.
+          </p>
+          <p v-else>All measured pollutants are in the Good range.</p>
+        </article>
+
+      </section>
+
+      <!-- Required 3-day summary table -->
+      <section class="panel">
+        <h2>Next 3 days</h2>
+        <div class="table-wrap">
+          <table class="forecast-table">
+            <thead>
+              <tr>
+                <th>Day</th>
+                <th>Temperature</th>
+                <th>Wind speed (max)</th>
+                <th>Rainfall</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="day in forecast.days" :key="day.date">
+                <td>
+                  <strong>{{ day.label }}</strong>
+                  <span class="cell-detail">{{ day.dateLabel }}</span>
+                </td>
+                <td>
+                  <span class="day-icon" aria-hidden="true">{{ day.icon }}</span>
+                  {{ day.tempMin }}&deg; to {{ day.tempMax }}&deg;C
+                  <span class="cell-detail">{{ day.condition }}</span>
+                </td>
+                <td>
+                  {{ day.windKmh }} km/h
+                  <span class="cell-detail">{{ day.windMs }} m/s</span>
+                </td>
+                <td>
+                  <strong>{{ day.rainLevel }}</strong>
+                  <span class="cell-detail" v-if="day.rainMm > 0">{{ day.rainMm }} mm &middot; {{ day.rainChance }}% chance</span>
+                  <span class="cell-detail" v-else>{{ day.rainChance }}% chance</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Air quality details: one card per pollutant above the Good level -->
+      <section class="panel">
+        <h2>Air quality</h2>
+        <p v-if="!forecast.air.available">Air quality data isn't available right now.</p>
+        <p v-else-if="!airAlert" class="air-ok">All measured pollutants are within the Good range.</p>
+        <template v-else>
+          <p class="air-summary">
+            Overall air quality right now: <strong>{{ forecast.air.level }}</strong>
+          </p>
+          <article
+            class="warning"
+            v-for="warning in forecast.air.warnings"
+            :key="warning.pollutant"
+            :class="'level-' + warning.levelKey">
+            <header class="warning-header">
+              <h3>{{ warning.name }}</h3>
+              <span class="badge">{{ warning.level }}</span>
+            </header>
+            <p class="warning-reading">
+              {{ warning.value }} {{ warning.unit }}, about {{ warning.timesGoodLimit }}&times;
+              the Good limit of {{ warning.goodLimit }} {{ warning.unit }}
+            </p>
+            <p><strong>Health risks:</strong> {{ warning.risks }}</p>
+            <p><strong>What to do:</strong> {{ warning.advice }}</p>
+          </article>
+        </template>
+      </section>
+
+      <p class="credit">Weather and air quality data from OpenWeatherMap.</p>
+
+    </main>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
