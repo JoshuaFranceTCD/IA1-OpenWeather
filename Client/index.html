@@ -3,176 +3,270 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Open Weather</title>
-  <link rel="stylesheet" href="style.css">
+  <title>Trip Forecaster</title>
+  <link rel="stylesheet" href="style.css?v=16">
   <!-- Vue 3 loaded straight from a CDN: no Vue-CLI, no build step -->
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 </head>
 <body>
 
   <!-- Vue mounts here. The mood class drives the sky background. -->
-  <div id="app" v-cloak class="sky" :class="['mood-' + mood, { 'is-idle': status === 'idle' }]">
+  <div id = "app">
+    <div class="sky" :class="{ 'is-idle': status === 'idle' }" :style="skyStyle">
 
-    <!-- Title (foreground). Large when idle, compact once a search has been made. -->
-    <header class="hero">
-      <h1 class="title"><span class="title-icon" aria-hidden="true">&#9729;</span> Open Weather</h1>
-      <p class="tagline" v-if="status === 'idle'">Know what to pack before you go.</p>
-    </header>
-
-    <!-- City search -->
-    <form class="search" @submit.prevent="search()">
-      <input
-        v-model.trim="city"
-        type="text"
-        class="search-input"
-        placeholder="Where are you travelling?"
-        aria-label="City name"
-        autocomplete="off"
-        autofocus>
-      <button type="submit" class="search-button" :disabled="!city || status === 'loading'">
-        {{ status === 'loading' ? 'Checking...' : 'Check' }}
+      <button v-if="status !== 'idle'" type="button" class="home-button" @click="goHome()" aria-label="Return to home">
+        <span aria-hidden="true">⌂</span> Home
       </button>
-    </form>
 
-    <!-- Example cities (first visit) or recent searches (returning visitor) -->
-    <div class="chips" v-if="status === 'idle' || status === 'error'">
-      <span class="chips-label">{{ history.length ? 'Recent:' : 'Try:' }}</span>
-      <button
-        v-for="name in chips"
-        :key="name"
-        type="button"
-        class="chip"
-        @click="search(name)">{{ name }}</button>
-    </div>
+      <!-- Title (foreground). Large when idle, compact once a search has been made. -->
+      <header class="hero">
+        <h1 class="title"><span class="title-icon" aria-hidden="true">&#9729;</span> Trip Forecaster</h1>
+        <p class="tagline" v-if="status === 'idle'">Know what to pack before you go.</p>
+      </header>
 
-    <!-- Loading state -->
-    <p class="status-message" v-if="status === 'loading'">
-      Checking the forecast for {{ city }}...
-    </p>
+      <!-- City search -->
+      <form class="search" @submit.prevent="search()">
+        <input
+          v-model.trim="city"
+          type="text"
+          class="search-input"
+          placeholder="Where are you travelling?"
+          aria-label="City name"
+          autocomplete="off"
+          autofocus>
+        <button type="submit" class="search-button" :disabled="!city || status === 'loading'">
+          {{ status === 'loading' ? 'Checking...' : 'Check' }}
+        </button>
+      </form>
 
-    <!-- Error state -->
-    <p class="error-banner" role="alert" v-if="status === 'error'">
-      {{ errorMessage }}
-    </p>
+      <!-- Example cities (first visit) or recent searches (returning visitor) -->
+      <div class="chips" v-if="status === 'idle' || status === 'error'">
+        <span class="chips-label">{{ history.length ? 'Recent:' : 'Try:' }}</span>
+        <button
+          v-for="name in chips"
+          :key="name"
+          type="button"
+          class="chip"
+          @click="search(name)">{{ name }}</button>
+      </div>
 
-    <!-- Results (shown once a forecast has arrived) -->
-    <main class="results" v-if="status === 'success'">
-
-      <h2 class="place">
-        {{ forecast.city }}<span v-if="forecast.country">, {{ forecast.country }}</span>
-      </h2>
-      <p class="place-coords">{{ forecast.lat.toFixed(2) }}, {{ forecast.lon.toFixed(2) }}</p>
-
-      <!-- Verdict strip: the answer at a glance -->
-      <section class="verdict">
-
-        <article class="verdict-card">
-          <span class="verdict-icon" aria-hidden="true">&#9730;</span>
-          <h3 v-if="forecast.packing.umbrella">Bring an umbrella</h3>
-          <h3 v-else>No umbrella needed</h3>
-          <p v-if="forecast.packing.umbrella">Rain is forecast: {{ forecast.packing.rainDays.join(', ') }}.</p>
-          <p v-else>No rain is forecast over the next 3 days.</p>
+      <section class="saved-checklists" v-if="status === 'idle' && savedChecklists.length" aria-labelledby="saved-heading">
+        <h2 id="saved-heading">Saved packing checklists</h2>
+        <article class="saved-checklist" v-for="list in savedChecklists" :key="list.id">
+          <div class="saved-checklist-header">
+            <div>
+              <h3>{{ list.city }}<span v-if="list.country">, {{ list.country }}</span></h3>
+              <p>{{ list.activities.map(activity => activityOptions.find(option => option.id === activity)?.label).join(' · ') || 'No activities selected' }}</p>
+            </div>
+            <button type="button" class="delete-saved-button" @click="deleteSavedChecklist(list.id)" :aria-label="'Delete saved checklist for ' + list.city">Delete</button>
+          </div>
+          <details>
+            <summary>Open checklist <span>Saved {{ new Date(list.savedAt).toLocaleDateString() }}</span></summary>
+            <div class="packing-days saved-packing-days">
+              <section class="packing-day" v-for="day in list.days" :key="day.date">
+                <h4>{{ day.label }} <span>{{ day.dateLabel }}</span></h4>
+                <ul class="packing-list">
+                  <li v-for="item in day.packingList" :key="item.id" :class="{ 'is-packed': list.checked[day.date + ':' + item.id] }">
+                    <label>
+                      <input type="checkbox" :checked="!!list.checked[day.date + ':' + item.id]" @change="toggleSavedPacked(list.id, day.date, item.id)">
+                      <span class="packing-item-copy"><strong>{{ item.label }}</strong><small>{{ item.reason }}</small></span>
+                    </label>
+                  </li>
+                </ul>
+              </section>
+            </div>
+          </details>
         </article>
-
-        <article class="verdict-card">
-          <span class="verdict-icon" aria-hidden="true">{{ forecast.packing.icon }}</span>
-          <h3>Pack for {{ forecast.packing.categoryLabel }} weather</h3>
-          <p>{{ forecast.packing.advice }}</p>
-          <p class="verdict-detail">
-            Average {{ forecast.packing.avgTemp }}&deg;C &middot;
-            range {{ forecast.packing.minTemp }}&deg;C to {{ forecast.packing.maxTemp }}&deg;C
-          </p>
-        </article>
-
-        <article class="verdict-card" :class="{ 'verdict-warn': airAlert }">
-          <span class="verdict-icon" aria-hidden="true">&#127787;</span>
-          <h3 v-if="!forecast.air.available">Air quality unavailable</h3>
-          <h3 v-else-if="airAlert">Air quality warning</h3>
-          <h3 v-else>Air quality is good</h3>
-          <p v-if="!forecast.air.available">We couldn't get air quality data just now.</p>
-          <p v-else-if="airAlert">
-            {{ forecast.air.warnings.length }}
-            {{ forecast.air.warnings.length === 1 ? 'pollutant is' : 'pollutants are' }}
-            above the Good level. Details below.
-          </p>
-          <p v-else>All measured pollutants are in the Good range.</p>
-        </article>
-
       </section>
 
-      <!-- Required 3-day summary table -->
-      <section class="panel">
-        <h2>Next 3 days</h2>
-        <div class="table-wrap">
-          <table class="forecast-table">
-            <thead>
-              <tr>
-                <th>Day</th>
-                <th>Temperature</th>
-                <th>Wind speed (max)</th>
-                <th>Rainfall</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="day in forecast.days" :key="day.date">
-                <td>
-                  <strong>{{ day.label }}</strong>
-                  <span class="cell-detail">{{ day.dateLabel }}</span>
-                </td>
-                <td>
-                  <span class="day-icon" aria-hidden="true">{{ day.icon }}</span>
-                  {{ day.tempMin }}&deg; to {{ day.tempMax }}&deg;C
-                  <span class="cell-detail">{{ day.condition }}</span>
-                </td>
-                <td>
-                  {{ day.windKmh }} km/h
-                  <span class="cell-detail">{{ day.windMs }} m/s</span>
-                </td>
-                <td>
-                  <strong>{{ day.rainLevel }}</strong>
-                  <span class="cell-detail" v-if="day.rainMm > 0">{{ day.rainMm }} mm &middot; {{ day.rainChance }}% chance</span>
-                  <span class="cell-detail" v-else>{{ day.rainChance }}% chance</span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
+      <!-- Loading state -->
+      <p class="status-message" v-if="status === 'loading'">
+        Checking the forecast for {{ city }}...
+      </p>
 
-      <!-- Air quality details: one card per pollutant above the Good level -->
-      <section class="panel">
-        <h2>Air quality</h2>
-        <p v-if="!forecast.air.available">Air quality data isn't available right now.</p>
-        <p v-else-if="!airAlert" class="air-ok">All measured pollutants are within the Good range.</p>
-        <template v-else>
-          <p class="air-summary">
-            Overall air quality right now: <strong>{{ forecast.air.level }}</strong>
-          </p>
-          <article
-            class="warning"
-            v-for="warning in forecast.air.warnings"
-            :key="warning.pollutant"
-            :class="'level-' + warning.levelKey">
-            <header class="warning-header">
-              <h3>{{ warning.name }}</h3>
-              <span class="badge">{{ warning.level }}</span>
-            </header>
-            <p class="warning-reading">
-              {{ warning.value }} {{ warning.unit }}, about {{ warning.timesGoodLimit }}&times;
-              the Good limit of {{ warning.goodLimit }} {{ warning.unit }}
-            </p>
-            <p><strong>Health risks:</strong> {{ warning.risks }}</p>
-            <p><strong>What to do:</strong> {{ warning.advice }}</p>
+      <!-- Error state -->
+      <p class="error-banner" role="alert" v-if="status === 'error'">
+        {{ errorMessage }}
+      </p>
+
+      <!-- Results (shown once a forecast has arrived) -->
+      <main class="results" v-if="status === 'success'">
+
+        <h2 class="place">
+          {{ forecast.city }}<span v-if="forecast.country">, {{ forecast.country }}</span>
+        </h2>
+        <p class="place-coords">{{ forecast.lat.toFixed(2) }}, {{ forecast.lon.toFixed(2) }}</p>
+
+        <!-- Verdict strip: the answer at a glance -->
+        <section class="verdict">
+
+          <article class="verdict-card">
+            <span class="verdict-icon" aria-hidden="true">&#9730;</span>
+            <h3 v-if="forecast.packing.umbrella">Bring an umbrella</h3>
+            <h3 v-else>No umbrella needed</h3>
+            <p v-if="forecast.packing.umbrella">Rain is forecast: {{ forecast.packing.rainDays.join(', ') }}.</p>
+            <p v-else>No rain is forecast over the next 3 days.</p>
           </article>
-        </template>
-      </section>
 
-      <p class="credit">Weather and air quality data from OpenWeatherMap.</p>
+          <article class="verdict-card">
+            <span class="verdict-icon" aria-hidden="true">{{ forecast.packing.icon }}</span>
+            <h3>Pack for {{ forecast.packing.categoryLabel }} weather</h3>
+            <p>{{ forecast.packing.advice }}</p>
+            <p class="verdict-detail">
+              Average {{ forecast.packing.avgTemp }}&deg;C &middot;
+              range {{ forecast.packing.minTemp }}&deg;C to {{ forecast.packing.maxTemp }}&deg;C
+            </p>
+          </article>
 
-    </main>
+          <article class="verdict-card" :class="{ 'verdict-warn': airAlert }">
+            <span class="verdict-icon" aria-hidden="true">&#127787;</span>
+            <h3 v-if="!forecast.air.available">Air quality unavailable</h3>
+            <h3 v-else-if="airAlert">Air quality warning</h3>
+            <h3 v-else>Air quality is good</h3>
+            <p v-if="!forecast.air.available">We couldn't get air quality data just now.</p>
+            <p v-else-if="airAlert">
+              {{ forecast.air.warnings.length }}
+              {{ forecast.air.warnings.length === 1 ? 'pollutant is' : 'pollutants are' }}
+              above the Good level. Details below.
+            </p>
+            <p v-else>All measured pollutants are in the Good range.</p>
+          </article>
 
+        </section>
+
+        <!-- Required 3-day summary table -->
+        <section class="panel">
+          <h2>Next 3 days</h2>
+          <div class="table-wrap">
+            <table class="forecast-table">
+              <thead>
+                <tr>
+                  <th>Day</th>
+                  <th>Temperature</th>
+                  <th>Wind speed (max)</th>
+                  <th>Rainfall</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="day in forecast.days" :key="day.date">
+                  <td>
+                    <strong>{{ day.label }}</strong>
+                    <span class="cell-detail">{{ day.dateLabel }}</span>
+                  </td>
+                  <td>
+                    <span class="weather-icon" :class="'weather-icon--' + weatherType(day.condition)" aria-hidden="true">
+                      <span v-if="weatherType(day.condition) === 'sunny'" class="forecast__sunny"></span>
+                      <span v-else-if="weatherType(day.condition) === 'cloudy'" class="forecast__cloudy">
+                        <span class="forecast__cloudy__sun"></span>
+                        <span class="forecast__cloudy__cloud forecast__cloudy__cloud--small"></span>
+                        <span class="forecast__cloudy__cloud forecast__cloudy__cloud--normal"></span>
+                      </span>
+                      <span v-else-if="weatherType(day.condition) === 'snow'" class="forecast__snow">
+                        <span class="forecast__snow__snow forecast__snow__snow--first"></span><span class="forecast__snow__snow forecast__snow__snow--second"></span><span class="forecast__snow__snow forecast__snow__snow--third"></span><span class="forecast__snow__snow forecast__snow__snow--fourth"></span>
+                        <span class="forecast__snow__cloud forecast__snow__cloud--grey"></span>
+                      </span>
+                      <span v-else class="forecast__rainy">
+                        <span class="forecast__rainy__rain forecast__rainy__rain--one"></span><span class="forecast__rainy__rain forecast__rainy__rain--two"></span><span class="forecast__rainy__rain forecast__rainy__rain--three"></span><span class="forecast__rainy__rain forecast__rainy__rain--four"></span>
+                        <span class="forecast__rainy__cloud forecast__rainy__cloud--grey"></span>
+                      </span>
+                    </span>
+                    {{ day.tempMin }}&deg; to {{ day.tempMax }}&deg;C
+                    <span class="cell-detail">{{ day.condition }}</span>
+                  </td>
+                  <td>
+                    {{ day.windKmh }} km/h
+                    <span class="cell-detail">{{ day.windMs }} m/s</span>
+                  </td>
+                  <td>
+                    <strong>{{ day.rainLevel }}</strong>
+                    <span class="cell-detail" v-if="day.rainMm > 0">{{ day.rainMm }} mm &middot; {{ day.rainChance }}% chance</span>
+                    <span class="cell-detail" v-else>{{ day.rainChance }}% chance</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <details class="packing-assistant">
+          <summary>Open the smart packing assistant</summary>
+          <div class="packing-assistant-content">
+            <p>Generate a separate day-by-day checklist using this forecast and your planned activities.</p>
+            <div class="activity-picker" aria-label="Planned activities">
+              <label v-for="activity in activityOptions" :key="activity.id" class="activity-option">
+                <input type="checkbox" :value="activity.id" v-model="selectedActivities">
+                <span>{{ activity.label }}</span>
+              </label>
+              <button type="button" class="update-packing-button" :disabled="packingStatus === 'loading'" @click="generatePacking()">
+                {{ packingStatus === 'loading' ? 'Building list…' : 'Generate packing list' }}
+              </button>
+            </div>
+            <p class="packing-error" role="alert" v-if="packingStatus === 'error'">{{ packingError }}</p>
+            <p class="packing-refresh-note" v-if="packingResult && packingActivitiesChanged">Activities changed. Generate the list again to update these suggestions.</p>
+            <template v-if="packingResult">
+              <header class="packing-heading">
+                <h2>{{ packingResult.city }} trip checklist</h2>
+                <span class="packing-activities" v-if="packingResult.activities.length">
+                  {{ packingResult.activities.map(activity => activityOptions.find(option => option.id === activity)?.label).join(' · ') }}
+                </span>
+                <button type="button" class="save-packing-button" :disabled="!!currentSavedId || packingActivitiesChanged" @click="savePackingList()">
+                  {{ currentSavedId ? 'Saved on this device' : 'Save checklist' }}
+                </button>
+              </header>
+              <p class="packing-save-message" role="status" v-if="saveMessage">{{ saveMessage }}</p>
+              <div class="packing-days">
+                <article class="packing-day" v-for="day in packingResult.days" :key="day.date">
+                  <h3>{{ day.label }} <span>{{ day.dateLabel }}</span></h3>
+                  <p class="packing-weather">{{ day.condition }} · {{ day.tempMin }}° to {{ day.tempMax }}°C · wind {{ day.windKmh }} km/h</p>
+                  <ul class="packing-list">
+                    <li v-for="item in day.packingList" :key="item.id" :class="{ 'is-packed': checkedItems[day.date + ':' + item.id] }">
+                      <label>
+                        <input type="checkbox" :checked="!!checkedItems[day.date + ':' + item.id]" @change="togglePacked(day.date, item.id)">
+                        <span class="packing-item-copy"><strong>{{ item.label }}</strong><small>{{ item.reason }}</small></span>
+                      </label>
+                    </li>
+                  </ul>
+                </article>
+              </div>
+            </template>
+          </div>
+        </details>
+
+        <!-- Air quality details: one card per pollutant above the Good level -->
+        <section class="panel">
+          <h2>Air quality</h2>
+          <p v-if="!forecast.air.available">Air quality data isn't available right now.</p>
+          <p v-else-if="!airAlert" class="air-ok">All measured pollutants are within the Good range.</p>
+          <template v-else>
+            <p class="air-summary">
+              Overall air quality right now: <strong>{{ forecast.air.level }}</strong>
+            </p>
+            <article
+              class="warning"
+              v-for="warning in forecast.air.warnings"
+              :key="warning.pollutant"
+              :class="'level-' + warning.levelKey">
+              <header class="warning-header">
+                <h3>{{ warning.name }}</h3>
+                <span class="badge">{{ warning.level }}</span>
+              </header>
+              <p class="warning-reading">
+                {{ warning.value }} {{ warning.unit }}, about {{ warning.timesGoodLimit }}&times;
+                the Good limit of {{ warning.goodLimit }} {{ warning.unit }}
+              </p>
+              <p><strong>Health risks:</strong> {{ warning.risks }}</p>
+              <p><strong>What to do:</strong> {{ warning.advice }}</p>
+            </article>
+          </template>
+        </section>
+
+        <p class="credit">Weather and air quality data from OpenWeatherMap.</p>
+
+      </main>
+
+    </div>
   </div>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=17"></script>
 </body>
 </html>

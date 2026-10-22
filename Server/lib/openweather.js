@@ -15,7 +15,7 @@ class OpenWeatherError extends Error {
 // Sends one GET request to OpenWeatherMap and returns the parsed JSON
 async function request(path, params) {
   const apiKey = process.env.OPENWEATHER_API_KEY;
-  if (!apiKey || apiKey === 'your_key_here') {
+  if (!apiKey) {
     throw new OpenWeatherError(
       'The server has no OpenWeatherMap API key. Add it to server/.env and restart the server.',
       500

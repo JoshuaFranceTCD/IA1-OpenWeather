@@ -6,7 +6,23 @@ const MIN_SLOTS_FOR_A_DAY = 4;   // 4 three-hour slots = 12 hours; a shorter fir
 const COLD_BELOW = 8;            // degrees C: below this is Cold
 const HOT_ABOVE = 24;            // degrees C: above this is Hot (8 to 24 inclusive is Mild)
 const RAIN_CONDITIONS = ['Rain', 'Drizzle', 'Thunderstorm'];
-
+const CONDITION_MOODS = {
+  Clear: 'clear',
+  Clouds: 'clouds',
+  Drizzle: 'drizzle',
+  Rain: 'rain',
+  Thunderstorm: 'thunderstorm',
+  Snow: 'snow',
+  Mist: 'atmosphere',
+  Smoke: 'atmosphere',
+  Haze: 'atmosphere',
+  Dust: 'atmosphere',
+  Fog: 'atmosphere',
+  Sand: 'atmosphere',
+  Ash: 'atmosphere',
+  Squall: 'thunderstorm',
+  Tornado: 'thunderstorm',
+};
 const CONDITION_ICONS = {
   Clear: '☀️',
   Clouds: '☁️',
@@ -167,8 +183,13 @@ function buildForecast(rawForecast, nowSeconds = Math.floor(Date.now() / 1000)) 
   const days = selected.map((group) => summariseDay(group, todayKey));
   const packing = buildPacking(days, selected.flatMap((group) => group.slots));
 
-  // Sky mood for the client: rain on the first day wins, otherwise the packing category
-  const mood = days[0].rainy ? 'rain' : packing.category;
+  const conditionMood = CONDITION_MOODS[days[0].condition];
+  const rainMood = ['drizzle', 'rain', 'thunderstorm'].includes(conditionMood) ? conditionMood : 'rain';
+  const mood = packing.category === 'hot'
+    ? 'hot'
+    : days[0].rainy
+      ? rainMood
+      : conditionMood || packing.category;
 
   return { days, packing, mood };
 }

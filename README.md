@@ -1,2 +1,2 @@
-# IA1-OpenWeather
-Weather Application using Open Weather API
+# Trip Forecaster
+Travel weather forecasts and personalised packing checklists, powered by OpenWeatherMap.
