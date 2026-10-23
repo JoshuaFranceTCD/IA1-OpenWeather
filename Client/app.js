@@ -89,7 +89,11 @@ createApp({
     const savedSunTimes = computed(() => {
       const sun = forecast.value && forecast.value.sun;
       if (!sun || !sun.sunrise || !sun.sunset) return null;
-      return { sunrise: formatSunTime(sun.sunrise), sunset: formatSunTime(sun.sunset) };
+      return {
+        sunrise: formatSunTime(sun.sunrise),
+        sunset: formatSunTime(sun.sunset),
+        daylightHours: Math.max(0, (sun.sunset - sun.sunrise) / 3600),
+      };
     });
     function formatSunTime(timestamp) {
       const offset = forecast.value?.sun?.timezoneOffset || 0;

@@ -62,7 +62,7 @@
           </div>
           <details>
             <summary>Open checklist <span>Saved {{ new Date(list.savedAt).toLocaleDateString() }}</span></summary>
-            <p class="checklist-daylight" v-if="list.sunTimes">Sunrise: <strong>{{ list.sunTimes.sunrise }}</strong> · Sunset: <strong>{{ list.sunTimes.sunset }}</strong></p>
+            <p class="checklist-daylight" v-if="list.sunTimes">Sunrise: <strong>{{ list.sunTimes.sunrise }}</strong> · Sunset: <strong>{{ list.sunTimes.sunset }}</strong><span v-if="list.sunTimes.daylightHours != null"> · Total sunlight: <strong>{{ list.sunTimes.daylightHours.toFixed(1) }} hours</strong></span></p>
             <div class="packing-days saved-packing-days">
               <section class="packing-day" v-for="day in list.days" :key="day.date">
                 <h4>{{ day.label }} <span>{{ day.dateLabel }}</span></h4>
@@ -228,7 +228,7 @@
                   {{ currentSavedId ? 'Saved on this device' : 'Save checklist' }}
                 </button>
               </header>
-              <p class="checklist-daylight" v-if="savedSunTimes">Today's sunrise: <strong>{{ savedSunTimes.sunrise }}</strong> · sunset: <strong>{{ savedSunTimes.sunset }}</strong></p>
+              <p class="checklist-daylight" v-if="savedSunTimes">Today's sunrise: <strong>{{ savedSunTimes.sunrise }}</strong> · sunset: <strong>{{ savedSunTimes.sunset }}</strong> · total sunlight: <strong>{{ savedSunTimes.daylightHours.toFixed(1) }} hours</strong></p>
               <p class="packing-save-message" role="status" v-if="saveMessage">{{ saveMessage }}</p>
               <div class="packing-days">
                 <article class="packing-day" v-for="day in packingResult.days" :key="day.date">
