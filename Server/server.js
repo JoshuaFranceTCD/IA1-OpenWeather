@@ -59,6 +59,12 @@ app.get('/api/forecast', async (req, res) => {
       lon: location.lon,
       ...buildForecast(rawForecast),
       air: assessAirQuality(rawAir),
+      // The free 5-day forecast includes the city's current sunrise and sunset.
+      sun: {
+        sunrise: rawForecast.city.sunrise,
+        sunset: rawForecast.city.sunset,
+        timezoneOffset: rawForecast.city.timezone || 0,
+      },
     });
   } catch (err) {
     if (err instanceof OpenWeatherError) {

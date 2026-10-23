@@ -31,6 +31,8 @@ createApp({
     const checkedItems = ref({});
     const savedChecklists = ref(loadSavedChecklists());
     const currentSavedId = ref(null);
+    const currentTime = ref(Date.now());
+    setInterval(() => { currentTime.value = Date.now(); }, 60000);
     const saveMessage = ref('');
     const packingStatus = ref('idle');
     const packingResult = ref(null);
@@ -72,6 +74,27 @@ createApp({
       () => Boolean(forecast.value && forecast.value.air.available && forecast.value.air.warnings.length)
     );
 
+    const sunArcStyle = computed(() => {
+      const sun = forecast.value && forecast.value.sun;
+      if (!sun || !sun.sunrise || !sun.sunset) return { sunTransform: 'rotate(-90 100 100)' };
+      const now = currentTime.value / 1000;
+      const progress = Math.max(0, Math.min(1, (now - sun.sunrise) / (sun.sunset - sun.sunrise)));
+      return { sunTransform: `rotate(${-90 + progress * 180} 100 100)` };
+    });
+    const daylightHours = computed(() => {
+      const sun = forecast.value && forecast.value.sun;
+      if (!sun || !sun.sunrise || !sun.sunset) return null;
+      return Math.max(0, (sun.sunset - sun.sunrise) / 3600);
+    });
+    const savedSunTimes = computed(() => {
+      const sun = forecast.value && forecast.value.sun;
+      if (!sun || !sun.sunrise || !sun.sunset) return null;
+      return { sunrise: formatSunTime(sun.sunrise), sunset: formatSunTime(sun.sunset) };
+    });
+    function formatSunTime(timestamp) {
+      const offset = forecast.value?.sun?.timezoneOffset || 0;
+      return new Date((timestamp + offset) * 1000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' });
+    }
     const packingActivitiesChanged = computed(() => {
       if (!packingResult.value) return false;
       const current = [...selectedActivities.value].sort();
@@ -145,6 +168,10 @@ createApp({
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Could not create a packing list.');
         if (requestId !== packingRequestId) return;
+        data.days.forEach((day) => day.packingList.unshift({
+          id: 'sunscreen', label: 'Sunscreen',
+          reason: 'Useful during prolonged time outdoors; choose broad-spectrum SPF 30+ and reapply as directed.',
+        }));
         packingResult.value = data;
         packingStatus.value = 'success';
       } catch (err) {
@@ -174,6 +201,7 @@ createApp({
         city: packingResult.value.city,
         country: packingResult.value.country,
         activities: [...packingResult.value.activities],
+        sunTimes: savedSunTimes.value,
         days: packingResult.value.days.map((day) => ({ ...day, packingList: day.packingList.map((item) => ({ ...item })) })),
         checked: { ...checkedItems.value },
         savedAt: new Date().toISOString(),
@@ -250,6 +278,7 @@ createApp({
     }
 
     return { abs, city, status, errorMessage, forecast, history, chips, mood, skyStyle, airAlert, weatherType,
+      sunArcStyle, daylightHours, formatSunTime, savedSunTimes,
       activityOptions, selectedActivities, packingStatus, packingResult, packingError, packingActivitiesChanged,
       checkedItems, currentSavedId, togglePacked, generatePacking, savedChecklists, saveMessage, savePackingList,
       toggleSavedPacked, deleteSavedChecklist, goHome, search };

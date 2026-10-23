@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Trip Forecaster</title>
-  <link rel="stylesheet" href="style.css?v=16">
+  <link rel="stylesheet" href="style.css?v=20">
   <!-- Vue 3 loaded straight from a CDN: no Vue-CLI, no build step -->
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 </head>
@@ -62,6 +62,7 @@
           </div>
           <details>
             <summary>Open checklist <span>Saved {{ new Date(list.savedAt).toLocaleDateString() }}</span></summary>
+            <p class="checklist-daylight" v-if="list.sunTimes">Sunrise: <strong>{{ list.sunTimes.sunrise }}</strong> · Sunset: <strong>{{ list.sunTimes.sunset }}</strong></p>
             <div class="packing-days saved-packing-days">
               <section class="packing-day" v-for="day in list.days" :key="day.date">
                 <h4>{{ day.label }} <span>{{ day.dateLabel }}</span></h4>
@@ -96,6 +97,20 @@
           {{ forecast.city }}<span v-if="forecast.country">, {{ forecast.country }}</span>
         </h2>
         <p class="place-coords">{{ forecast.lat.toFixed(2) }}, {{ forecast.lon.toFixed(2) }}</p>
+
+        <section class="panel sun-panel" aria-labelledby="sun-heading">
+          <div class="sun-panel-copy">
+            <h2 id="sun-heading">Today's daylight</h2>
+            <template v-if="forecast.sun && daylightHours !== null">
+              <div class="sun-times"><span><small>Sunrise</small><strong>{{ formatSunTime(forecast.sun.sunrise) }}</strong></span><span><small>Sunset</small><strong>{{ formatSunTime(forecast.sun.sunset) }}</strong></span></div>
+              <p class="daylight-total">{{ daylightHours.toFixed(1) }} hours of sunlight</p>
+            </template>
+            <p v-else class="sun-data-note">Sunrise and sunset data isn't in the current server response. Restart the server, then search for the city again.</p>
+          </div>
+          <div class="sun-arc" :style="sunArcStyle" role="img" aria-label="Sun position between sunrise and sunset">
+            <svg viewBox="0 0 200 115" aria-hidden="true"><path class="sun-arc-track" d="M20 100 A80 80 0 0 1 180 100"/><circle class="sun-marker" cx="100" cy="20" r="7" :transform="sunArcStyle.sunTransform"/><circle class="sun-marker-core" cx="100" cy="20" r="3" :transform="sunArcStyle.sunTransform"/></svg>
+          </div>
+        </section>
 
         <!-- Verdict strip: the answer at a glance -->
         <section class="verdict">
@@ -213,6 +228,7 @@
                   {{ currentSavedId ? 'Saved on this device' : 'Save checklist' }}
                 </button>
               </header>
+              <p class="checklist-daylight" v-if="savedSunTimes">Today's sunrise: <strong>{{ savedSunTimes.sunrise }}</strong> · sunset: <strong>{{ savedSunTimes.sunset }}</strong></p>
               <p class="packing-save-message" role="status" v-if="saveMessage">{{ saveMessage }}</p>
               <div class="packing-days">
                 <article class="packing-day" v-for="day in packingResult.days" :key="day.date">
@@ -267,6 +283,6 @@
     </div>
   </div>
 
-  <script src="app.js?v=17"></script>
+  <script src="app.js?v=23"></script>
 </body>
 </html>
